@@ -63,3 +63,126 @@ O diagrama abaixo ilustra a arquitetura do sistema, mostrando a comunicação en
 ## Licença
 
 Este projeto é licenciado sob a [MIT License](https://opensource.org/licenses/MIT).
+
+## Código WOKWI
+#include <WiFi.h>
+#include <PubSubClient.h>
+#include <LiquidCrystal_I2C.h>
+
+WiFiClient wifiClient;
+PubSubClient mqttClient(wifiClient);
+
+LiquidCrystal_I2C lcd(0x27, 16, 2); 
+
+char cancelKey = 'X';  
+bool cancelRequested = false;  
+
+String numMamadeiras = "";  
+String numQuarto = "";      
+bool questionAsked = false;  
+
+void callback(char* topic, byte* payload, unsigned int length) {
+  String message = "";
+  for (int i = 0; i < length; i++) {
+    message += (char)payload[i];
+  }
+  Serial.println("Mensagem recebida no tópico " + String(topic) + ": " + message);
+
+  if (String(topic) == "pedido/resposta") {
+    // Exibe a resposta no LCD
+    lcd.clear();
+    lcd.print("Resposta recebida:");
+    lcd.setCursor(0, 1);
+    lcd.print(message);
+  }
+}
+
+void setup() {
+  lcd.init();
+  lcd.backlight();
+  Serial.begin(115200);
+  lcd.begin(16, 2);  
+  lcd.print("Conectando ao Wi-Fi...");
+
+  // Conectar ao Wi-Fi
+  WiFi.begin("Wokwi-GUEST", "");
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(100);
+    Serial.print(".");
+  }
+  lcd.clear();
+  lcd.print("WiFi conectado!");
+
+  mqttClient.setServer("test.mosquitto.org", 1883);  
+  mqttClient.setCallback(callback);  
+
+  while (!mqttClient.connect("esp32-pedro")) {
+    Serial.println("Tentando conectar ao MQTT...");
+    delay(1000);
+  }
+
+  Serial.println("MQTT conectado!");
+  mqttClient.subscribe("pedido/resposta");  
+  lcd.clear();
+  lcd.print("Pressione X para");
+  lcd.setCursor(0, 1);
+  lcd.print("cancelar pedido");
+}
+
+void loop() {
+  if (!mqttClient.connected()) {
+    mqttClient.connect("esp32-pedro");
+  }
+
+  mqttClient.loop();
+
+  if (Serial.available() > 0) {
+    char inputChar = Serial.read();
+    
+
+    if (inputChar == cancelKey) {
+      cancelRequested = true;
+      lcd.clear();
+      lcd.print("Pedido cancelado");
+      mqttClient.publish("pedido/cancelar", "1");  // Envia mensagem de cancelamento
+      delay(2000);  // Espera 2 segundos para mostrar a mensagem
+      lcd.clear();
+      lcd.print("Pedido encerrado");
+      delay(2000);  // Exibe a mensagem de encerramento
+    }
+
+    if (inputChar != '\n' && inputChar != '\r') {  // Ignora as quebras de linha
+      if (numMamadeiras.length() == 0) {
+        numMamadeiras += inputChar;  
+      } else if (numQuarto.length() == 0) {
+        numQuarto += inputChar;  
+      }
+    }
+
+    if (numMamadeiras.length() > 0 && numQuarto.length() > 0) {
+      lcd.clear();
+      lcd.print("Mamadeiras: " + numMamadeiras);
+      lcd.setCursor(0, 1);
+      lcd.print("Quarto: " + numQuarto);
+
+      String resposta = "Mamadeiras: " + numMamadeiras + " | Quarto: " + numQuarto;
+      mqttClient.publish("pedido/resposta", resposta.c_str());
+      
+      numMamadeiras = "";
+      numQuarto = "";
+    }
+  }
+
+  if (!questionAsked) {  
+    String pergunta = "Qual a quantidade de mamadeira?";  
+    mqttClient.publish("pedido/mamadeira", pergunta.c_str());  
+    
+    Serial.println("Pergunta enviada: " + pergunta);
+    lcd.clear();
+    lcd.print("Pergunta enviada: ");
+    lcd.setCursor(0, 1);
+    lcd.print(pergunta);
+    questionAsked = true;  
+  }
+}
+
