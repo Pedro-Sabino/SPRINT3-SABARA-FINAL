@@ -1,6 +1,10 @@
+## Grupo: Igor Nociti RM560225, Pedro Paulo RM559578, Henrique Maciel RM559628 e Luigi
+
 # Controle de Pedidos de Mamadeiras via MQTT
 
 Este projeto utiliza um **ESP32** para controlar pedidos de mamadeiras em um ambiente hospitalar. Ele se comunica com um cliente MQTT para enviar perguntas sobre a quantidade de mamadeiras e receber respostas. O ESP32 exibe as informações no LCD e envia as respostas para um tópico MQTT.
+
+## LINK PARA O VIDEO DO PROJETO: https://youtu.be/4uUkHEFoQsM?si=ifZmKeWUo-y2wJZ8
 
 ## Funcionalidades
 
